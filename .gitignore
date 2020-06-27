@@ -13,3 +13,13 @@
 *.ptx
 *.cubin
 *.fatbin
+
+# Tex
+*.bcf
+*.loe
+*.ptc
+*.run
+*.synctex
+
+# Pictures
+Pictures/
