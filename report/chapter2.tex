@@ -1,0 +1,93 @@
+\chapterimage{head2} % Chapter heading image
+
+\chapter{Implementation Details}
+
+\section{Problem Formulation}
+
+对于一棵具有 $N$ 个结点的树 $T$，根结点编号为 0，自树根至叶的编号呈深度优先次序，
+每个结点具有以下六种属性（括号内为缩写）：
+
+\begin{itemize}
+    \item index(id)
+    \item upper(u)
+    \item lower(l)
+    \item diagonal(d)
+    \item right-side-hand(rhs)
+    \item parent(p)  
+\end{itemize}
+
+\vspace{1ex}
+其中 parent 代表的父结点的 id。
+
+\vspace{5ex}
+该问题 包含两个阶段： 
+
+\begin{itemize}
+    \item 第一阶段完成由树叶至树根的一次遍历，记作 backward sweep;
+    \item 第二阶段完成由树根至叶的一次遍历，记作 forward sweep;
+\end{itemize}
+
+\vspace{1ex}
+两个阶段的次序不可交换。算法伪代码如下：
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.8\textwidth]{description}
+    \label{fig:description}
+\end{figure}
+
+
+\vspace{10ex}
+\section{Implementation of cuThomasBatch}
+An efficient memory management is critical to achieve a good performance, but even
+much more on those architectures based on a high throughput and a high memory
+latency, such as the GPUs. In this sense, first we focus on presenting the different data
+layouts proposed and analyze the impact of these on the overall performance. Two
+different data layouts were explored: Flat and Full-Interleaved. While the Flat data
+layout consists of storing all the elements of each of the systems in contiguous memory
+locations, in the Full-Interleaved data layout, first, we store the first elements of each
+of the systems in contiguous memory locations, after that we store the set of the second
+elements, and so on until the last element.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.8\textwidth]{fig-31}
+    \label{fig:fig-31}
+    \caption{Example of the \textit{Flat} data layout}
+\end{figure}
+
+For sake of clarity, Figure \ref{fig:fig-31} and \ref{fig:fig-32} illustrate a simple example composed by four
+different tridiagonal systems of three elements each. Please, note that we only illustrate
+one vector per system in Figure 3.1, but in the real scenario we would have 4 vectors
+per tridiagonal system on which are carried out the strategies above described. As
+widely known, one of the most important requirements to achieve a good performance
+on NVIDIA GPUs is to have contiguous threads accessing contiguous memory locations
+(coalescing memory accesses). This is the main motivation behind the proposal of the
+different data layouts and CUDA thread mappings. As later shown, the differences
+found in the data layouts studied have important consequences on the scalability.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.8\textwidth]{fig-32}
+    \label{fig:fig-32}
+    \caption{Example of the \textit{Flat} data layout}
+\end{figure}
+
+Additionally, we have explored other data-layout, Unified-Vector. In this case, we
+attempt to analyze the hierarchy of memory by exploiting the temporal locality that
+there is among the different vectors. Basically, every
+thread, immediately after $a_i$ is computed, has to compute also 
+$b_i$ and $c_i$, in the forward step. In the backward step, the process
+is similar, but in the opposite order.
+
+
+
+
+
+
+
+
+
+

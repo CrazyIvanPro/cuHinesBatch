@@ -1,4 +1,4 @@
-\chapterimage{head2} % Chapter heading image
+\chapterimage{head1} % Chapter heading image
 
 \chapter{Voltage on Neuron Morphology}
 
@@ -44,7 +44,7 @@ neurons (128) is computed using single precision operations, in \cite{cuHines}
 
 Although GPUs are traditionally associated to interactive applications involving high
 rasterization performance, they are also widely used to accelerate much more general
-applications (now called General Purpose Computing on GPU (GPGPU) [16]) which
+applications (now called General Purpose Computing on GPU (GPGPU) [26]) which
 require an intense computational load and present parallel characteristics. The main
 feature of these devices is a large number of processing elements integrated into a single chip, which reduces significantly the cache memory. These processing elements
 can access to a local high-speed external DRAM memory, connected to the computer
@@ -75,7 +75,7 @@ great reference in order to evaluate our implementations.
 
 \vspace{10ex}
 \section{Tridiagonal Linear Systems}
-The state-of-the-art method to solve tridiagonal systems is the called Thomas algorithm [19]. Thomas algorithm is a specialized application of the Gaussian elimination
+The state-of-the-art method to solve tridiagonal systems is the called Thomas algorithm [28]. Thomas algorithm is a specialized application of the Gaussian elimination
 that takes into account the tridiagonal structure of the system. Thomas algorithm
 consists of two stages, commonly denoted as forward elimination and backward substitution.
 
@@ -183,7 +183,7 @@ is more regular.
 
 In fact, hybrid combinations that try to exploit the best of each algorithm have
 been explored. Figure \ref{fig:24} illustrates the access pattern of the
-CR-PCR combination proposed in [13]. CR-PCR reduces the system to a certain size
+CR-PCR combination proposed in [21]. CR-PCR reduces the system to a certain size
 using the forward reduction phase of CR and then solves the reduced (intermediate)
 system with the PCR algorithm. Finally, it substitutes the solved unknowns back into
 the original system using the backward substitution phase of CR. Indeed, this is the
