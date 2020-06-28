@@ -1,4 +1,297 @@
 \chapterimage{head2} % Chapter heading image
 
-\chapter{TODO}
+\chapter{Voltage on Neuron Morphology}
+
+\section{Introduction}
+
+The standard algorithm used to compute the Voltage on neurons' morphology
+ is the Hines algorithm [8]. This algorithm is based on the Thomas 
+ algorithm [2], which solves tridiagonal systems. Although the use of
+  GPUs to compute the Thomas algorithm has been deeply studied 
+  [5], the differences among these two algorithms,
+   Hines and Thomas, makes us impossible to use the last one as this 
+   can not deal with the sparsity of the Hines matrix.
+
+Previous works [13] have explored the use of other algorithms based on
+ the Stone's method [10]. Unlike Thomas algorithm, this method is
+  parallel. However, it is in need of a higher number of operations 
+  ($20 n \log n$) with respect to the ($8n$) operations of the Thomas
+   algorithm to solve one single system of size $n$. Also, the use of 
+   parallel methods present some additional drawbacks to be dealt with.
+    For instance, it would be difficult to compute those neurons that
+     compromise a size bigger than the maximum number of threads per CUDA block (1024) or shared memory (48KB). Other problems are the computationally expensive operations such as atomic accesses and synchronizations necessary to compute this method. Each neuron presents a particular morphology and so a different scheduling (preprocessing) must be applied to each of them which makes even more difficult its implementation.
+
+Unlike the work presented in [13], where a relatively low number of 
+neurons (128) is computed using single precision operations, in \cite{cuHines}
+ the authors are able to execute a very high number of neurons 
+ (up to hundreds of thousands) using double precision operations. 
+ They have used the Hines algorithm, which is the optimum method in 
+ terms of number of operations, avoiding high expensive computational
+  operations, such as synchronizations and atomic accesses. The code
+   is able to compute a high number of systems (neurons) of any size in
+    one call (CUDA kernel), using one thread per Hines system instead of
+     one CUDA block per system. Although multiple works have explore the
+      use of GPUs to compute multiple independent problems in parallel
+       without transforming the data layout [10], the 
+       particular characteristics of the sparsity of the Hines matrices
+        forces us to modify the data layout to efficiently exploit the 
+        memory hierarchy of the GPUs (coalescing accesses to GPU memory).
+         These modifications have not been explored previously, which are
+          deeply described and analyzed in the present work.
+
+
+\section{GPU and cuSPARSE}
+
+Although GPUs are traditionally associated to interactive applications involving high
+rasterization performance, they are also widely used to accelerate much more general
+applications (now called General Purpose Computing on GPU (GPGPU) [26]) which
+require an intense computational load and present parallel characteristics. The main
+feature of these devices is a large number of processing elements integrated into a single chip, which reduces significantly the cache memory. These processing elements
+can access to a local high-speed external DRAM memory, connected to the computer
+through a high-speed I/O interface (PCI-Express). Overall, these devices can offer a
+higher main memory bandwidth and can use data parallelism to achieve a higher floating point throughput than CPUs
+
+The \cite{cuSPARSE} library contains a set of basic linear algebra subroutines used for
+handling sparse matrices. It is implemented on top of the NVIDIA CUDA runtime (which is part of the CUDA Toolkit) and is designed to be called from C and C++.
+The library routines can be classified into four categories:
+
+\begin{itemize}
+    \item Level 1 : operations between a vector in sparse format and a vector in dense
+    format
+    \item Level 2 : operations between a matrix in sparse format and a vector in dense
+    format
+    \item Level 3 : operations between a matrix in sparse format and a set of vectors in
+    dense format (which can also usually be viewed as a dense tall matrix)
+    \item Conversions: operations that allow conversion between different matrix formats,
+    and compression of csr matrices.
+\end{itemize}
+
+The cuSPARSE library allows developers to access the computational resources of the
+NVIDIA graphics processing unit (GPU), although it does not auto-parallelize across
+multiple GPUs. As we will see in subsequent sections this library contains the reference
+solver for tridiagonal linear systems in GPU, gtsvStridedBatch which is going to be a
+great reference in order to evaluate our implementations.
+
+
+\vspace{10ex}
+\section{Tridiagonal Linear Systems}
+The state-of-the-art method to solve tridiagonal systems is the called Thomas algorithm [28]. Thomas algorithm is a specialized application of the Gaussian elimination
+that takes into account the tridiagonal structure of the system. Thomas algorithm
+consists of two stages, commonly denoted as forward elimination and backward substitution.
+
+Given a linear $Au = y$ system, where $A$ is a tridiagonal matrix:
+
+\begin{equation}
+    A=\left[\begin{array}{cccccc}
+        b_{1} & c_{1} & & & & 0 \\
+        a_{2} & b_{2} & c_{2} & & & \\
+        & & \cdot & \cdot & & \\
+        & & \cdot & \cdot & \cdot & \\
+        & & & a_{n-1} & b_{n-1} & c_{n-1} \\
+        & & & & a_{n} & b_{n}
+        \end{array}\right]
+\end{equation}
+
+The forward stage eliminates the lower diagonal as follows:
+
+\begin{equation}
+    \begin{aligned}
+        c_{1}^{\prime}=\frac{c_{1}}{b_{1}}, \quad c_{i}^{\prime}=\frac{c_{i}}{b_{i}-c_{i-1}^{\prime} a_{i}} & \text { for } i=2,3, \ldots, n-1 \\
+        y_{1}^{\prime}=\frac{y_{1}}{b_{1}}, \quad y_{i}^{\prime}=\frac{y_{i}-y_{i-1}^{\prime} a_{i}}{b_{i}-c_{i-1}^{\prime} a_{i}} & \text { for } i=2,3, \ldots, n-1
+    \end{aligned}
+\end{equation}
+
+and then the backward stage recursively solve each row in reverse order:
+
+\begin{equation}
+    u_{n}=y_{n}^{\prime}, u_{i}=y_{i}^{\prime}-c_{i}^{\prime} u_{i+1} \text { for } i=n-1, n-2, \ldots, 1
+\end{equation}
+
+Overall, the complexity of Thomas algorithm is optimal: $8n$ operations 
+in $2n - 1$ steps.
+
+Cyclic Reduction (CR) is a parallel alternative to Thomas algorithm.
+It also consists of two phases (reduction and substitution). In each intermediate step
+of the reduction phase, all even-indexed (i) equations 
+$a_{i} x_{i-1}+b_{i} x_{i}+c_{i} x_{i+1}=d_{i}$ are
+reduced. The values of $a_i$, $b_i$, $c_i$ and $d_i$ are updated in 
+each step according to:
+
+\begin{equation}
+    \begin{array}{c}
+        a_{i}^{\prime}=-a_{i-1} k_{1}, b_{i}^{\prime}=b_{i}-c_{i-1} k_{1}-a_{i+1} k_{2} c_{i}^{\prime}=-c_{i+1} k_{2}, y_{i}^{\prime}=y_{i}-y_{i-1} k_{1}-y_{i+1} k_{2} \\
+        k_{1}=\frac{a_{i}}{b_{i-1}}, k_{2}=\frac{c_{i}}{b_{i+1}}
+    \end{array}
+\end{equation}
+
+After $log_2 n$ steps, the system is reduced to a single equation that is
+ solved directly. All odd-indexed unknowns $x_i$ are then solved in the 
+ substitution phase by introducing the already computed $u_{i−1}$ and 
+ $u_{i+1}$ values:
+
+\begin{equation}
+    u_{i}=\frac{y_{i}^{\prime}-a_{i}^{\prime} x_{i-1}-c_{i}^{\prime} x_{i+1}}{b_{i}^{\prime}}
+\end{equation}
+
+Overall, the CR algorithm needs $17n$ operations and $2 \log_2 n - 1$ 
+steps. Figure \ref{fig:22} graphically illustrates its access pattern.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.35\textwidth]{fig-22}
+    \label{fig:22}
+    \caption{Access pattern of the CR algorithm}
+\end{figure}
+
+Parallel Cyclic Reduction (PCR) is a variant of CR, which only has
+substitution phase. For convenience, we consider cases where $n = 2^s$
+, that involve $s = \log_2 n$ steps. Similarly to CR $a$, $b$, $c$ and $y$ 
+are updated as follows, for $j = 1, 2, \cdots, s$ and $k = 2^{j-1}$:
+
+\begin{equation}
+    \begin{array}{c}
+        a_{i}^{\prime}=\alpha_{i} a_{i}, b_{i}^{\prime}=b_{i}+\alpha_{i} c_{i-k}+\beta_{i} a_{i+k} \\
+        c_{i}^{\prime}=\beta_{i} c_{i+1}, y_{i}^{\prime}=b_{i}+\alpha_{i} y_{i-k}+\beta_{i} y_{i+k} \\
+        \alpha_{i}=\frac{-a_{i}}{b_{i-1}}, \beta_{i}=\frac{-c_{i}}{b_{i}}
+    \end{array}
+\end{equation}
+
+finally the solution is achieved as:
+
+\begin{equation}
+    u_{i}=\frac{y_{i}^{\prime}}{b_{i}}
+\end{equation}
+
+Essentially, at each reduction stage, the current system is transformed into two smaller
+systems and after $\log_2 n$ steps the original system is reduced to $n$ 
+independent equations. Overall, the operation count of PCR is $12n log_2 n$. 
+Figure \ref{fig:23} sketches the corresponding access pattern.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.35\textwidth]{fig-23}
+    \label{fig:23}
+    \caption{Access pattern of the PCR algorithm}
+\end{figure}
+
+We should highlight that apart from their computational complexity these algorithms differ in their data access and synchronization patterns, which also have a strong
+influence on their actual performance. For instance, in the CR algorithm synchronizations are introduced at the end of each step and its corresponding memory access
+pattern may cause bank conflicts. PCR needs less steps and its memory access pattern
+is more regular.
+
+In fact, hybrid combinations that try to exploit the best of each algorithm have
+been explored. Figure \ref{fig:24} illustrates the access pattern of the
+CR-PCR combination proposed in [21]. CR-PCR reduces the system to a certain size
+using the forward reduction phase of CR and then solves the reduced (intermediate)
+system with the PCR algorithm. Finally, it substitutes the solved unknowns back into
+the original system using the backward substitution phase of CR. Indeed, this is the
+method implemented by the gtsvStridedBatch routine into the cuSPARSE package.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.38\textwidth]{fig-24}
+    \label{fig:24}
+    \caption{Access pattern of the CR-PCR algorithm}
+\end{figure}
+
+
+\vspace{10ex}
+\section{Hines Algorithm}
+In this section, we describe the numerical framework behind the computation of the
+Voltage on neurons morphology. It follows the next general form:
+
+\begin{equation}
+    C \frac{\partial V}{\partial t}+I=f \frac{\partial}{\partial x}\left(g \frac{\partial V}{\partial x}\right)
+\end{equation}
+
+where $f$ and $g$ are functions on $x$-dimension and the current $I$ and 
+capacitance $C$ depend on the voltage $V$. Discretizing the previous 
+equation on a given morphology we obtain a system that has to be solved 
+every time-step. This system must be solved at each point:
+
+\begin{equation}
+    a_{i} V_{i+1}^{n+1}+d_{i} V_{i}^{n+1}+b_{i} V_{i-1}^{n+1}=r_{i}
+\end{equation}
+
+where the coefficients of the matrix are defined as follow:
+
+upper diagonal: 
+
+\begin{equation}
+    a_{i}=-\frac{f_{i} g_{i+\frac{1}{2}}}{2 \Delta_{x}^{2}}
+\end{equation}
+
+lower diagonal: 
+
+\begin{equation}
+    b_{i}=-\frac{f_{i} g_{i+\frac{1}{2}}}{2 \Delta_{x}^{2}}
+\end{equation}
+
+diagonal: 
+
+\begin{equation}
+    d_{i}=\frac{C_{i}}{\Delta_{t}}-\left(a_{i}+b_{i}\right)
+\end{equation}
+
+rhs: 
+
+\begin{equation}
+    r_{i}=\frac{C_{i}}{\Delta_{t}} V_{i}^{n}-I-a_{i}\left(V_{i-1}^{n}-V_{i}^{n}\right)-b_{i}\left(V_{i+1}^{n}-V_{i}^{n}\right)
+\end{equation}
+
+The $a_i$ and $b_i$ are constant in the time, and they are computed once at start up.
+Otherwise, the diagonal (d) and right-side-hand (rhs) coefficients are updated every
+time-step when solving the system.
+
+The discretization above explained is extended to include branching, where the
+spatial domain (neuron morphology) is composed of a series of one-dimension sections
+that are joined at branch points according to the neuron morphology.
+
+For sake of clarity, we illustrate a simple example of a neuron morphology in Figure \ref{fig:25}. It is important to note that the graph formed by the neuron morphology is an
+acyclic graph, i.e. it has no loops. The nodes are numbered using a scheme that gives
+the matrix sparsity structure that allows to solve the system in linear time.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.6\textwidth]{fig-25}
+    \label{fig:25}
+    \caption{Example of a neuron morphology and its numbering (left-top and bottom)
+    and sparsity pattern corresponding to the numbering followed (top-right)}
+\end{figure}
+
+The Hines matrices feature the following properties: they are symmetric, the diagonal
+coefficients are all nonzero and per each off-diagonal element, there is one off-diagonal
+element in the corresponding row and column (see row/column 7, 12, 17 and 22 in
+Figure \ref{fig:25}).
+
+Given the aforementioned properties, the Hines systems ($Ax = b$) can be efficiently
+solved by using an algorithm similar to Thomas algorithm for solving tri-diagonal systems. This algorithm, called Hines algorithm, is almost identical to the Thomas algorithm except by the sparsity pattern given by the morphology of the neurons whose
+pattern is stored by the $p$ vector. An example of the sequential code used to implement
+the Hines algorithm is illustrated in pseudo-code in Algorithm 1.
+
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{hines}
+    \label{fig:hines}
+\end{figure}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

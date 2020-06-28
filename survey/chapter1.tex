@@ -1,4 +1,139 @@
 \chapterimage{head1} % Chapter heading image
 
-\chapter{TODO}
+\chapter{Human Brain Project}
+
+The Human Brain Project (HBP) was launched by the European Commission's Future and 
+Emerging Technologies (FET) scheme in October 2013, and has been 
+scheduled to run for ten years. The Flagships represent a new partnering
+ model for visionary, long-term European cooperative research in the 
+ European Research Area, demonstrating the potential for common research
+  efforts. The HBP has the following main objectives:
+
+\begin{itemize}
+    \item Create and operate a European Scientific Research Infrastructure for brain research, cognitive neuroscience, and other brain-inspired sciences
+    \item Gather, organise and disseminate data describing the brain and its diseases
+    \item Simulate the brain
+    \item Build multi-scale scaffold theory and models for the brain
+    \item Develop brain-inspired computing, data analytics and robotics
+    \item Ensure that the HBP's work is undertaken responsibly and that it benefits society.
+\end{itemize}
+
+The HBP is now in its final phase with its Vision and Mission focused on:
+
+\paragraph{The HBP Vision}
+
+To deepen understanding of human brain structure and function, by 
+building a European research infrastructure that harnesses multiple disciplines and computing, and advances science, ICT and medicine, to the benefit of society.
+
+\paragraph{The HBP Missions}
+
+1) To explore the multi-level complexity of the brain in space and time.
+
+2) To transfer the acquired knowledge to brain-derived applications in health, computing, and technology.
+
+3) To provide shared, open computing tools, models and data through the European Brain Research Infrastructure “EBRAINS – Solutions for Neuroscience” that serves to integrate brain science across disciplines.
+
+4) To create a trans-disciplinary community of researchers united by the quest to understand the brain at multiple scales of organisation and functioning and thus derive societal benefits.
+
+\section{Human Brain Simulation}
+
+Can you imagine a brain and its workings being replicated on a computer? 
+That is what the Human Brain Simulation aims to do. 
+
+
+Today, we can find multiple initiatives that attempt to simulate the 
+behavior of the Human Brain by computer simulations [9, 5, 7]. This is 
+one of the most important challenges in the recent history of computing
+with a large number of practical applications. The main constraint 
+is being able to simulate efficiently a huge number of neurons using 
+the current computer technology. However, the challenge is a complex one,
+as the human brain contains 86 billion neurons each with an average 
+of 7,000 connections to other neurons (known as synapses). 
+Current computer power is insufficient to model a entire human brain
+at this level of interconnectedness.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.7\textwidth]{brainsimu}
+    \label{fig:brainsimu}
+    \caption{Human Brain Simulation}
+\end{figure}
+
+ 
+A simpler approach has thus been adopted to produce results that are 
+increasingly close approximations to experimental data. Simulation
+takes place at several separate organisational levels in the brain, 
+ranging from the molecular though the subcellular to cellular and up 
+to the whole organ. The level of detail decreases as the level rises
+towards the whole organ.
+
+At the microscopic level and below, the signalling between neurons is the
+focus. Neurons are electrically excitable cells that transmit messages
+to each other across the synapses. These messages are crucial to the 
+normal functioning of the central nervous system. The macroscopic level
+examines assemblies of neurons, and their roles within the brain.
+
+One of the most efficient ways in which the scientific community attempts
+to simulate the behavior of the Human Brain consists of computing the 
+next 3 major steps [6]: The computing of 
+\begin{itemize}
+    \item 1) the Voltage on neuron morphology
+    \item 2) the synaptic elements in each of the neurons
+    \item 3) the connectivity between the neurons.
+\end{itemize}
+
+In this survey, we focus on the first step which is one of the most 
+consuming time steps of the simulation. Also it is strongly linked with 
+the rest of steps. All these steps must be carried out on each of the 
+neurons. The Human Brain is composed by about 14 thousand million of 
+neurons, which are completely different among them in size and shape.
+
+
+\vspace{10ex}
+\section{Arbor Simulator}
+
+Current simulators were designed for single core systems, with parallel implementations
+added later. There are efforts to add many core support to existing codes, however they
+are subject to the law of diminishing returns, this means that adding more cores could
+even cause a fall in performance. A common example is adding more people to a job,
+such as the assembly of a car on a factory floor. At some point, adding more workers causes problems such as workers getting in each other’s way or frequently finding
+themselves waiting for access to a part.
+
+This presents an opportunity to start work on the next generation of simulators,
+designed from the ground up to support diverse many core architectures. Led by ETH
+Zurich, \cite{Arbor}, as one of the simulators born inside the philosophy
+ of the Human Brain project, aims to fill this gap.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.5\textwidth]{fig-11}
+    \label{fig:11}
+    \caption{Arbor main behavior}
+\end{figure}
+
+The simulation itself is divided into two big tasks, communication and computation, exchange and update-cells respectively on \ref{fig:11}. On communication, each
+simulated neuron sends the spikes generated on one simulation time step to the other
+interconnected neurons, the way that we determined if a spike is generated or not is
+through the computation phase. As we can see, the communication phase depends on
+the results obtained by the computation phase, leading us to one of the key points of
+Arbor implementation: each time step of the simulation is half step of the behavior
+that we are simulating, allowing a temporal pipeline implementation.
+
+\vspace{5ex}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.5\textwidth]{fig-12}
+    \label{fig:12}
+    \caption{Arbor simulation pipeline}
+\end{figure}
+
+Despite being a great optimization that enables a increment in the parallelism,
+it is not the main focus of our thesis, that is the reason why we are going to shift
+our attention into the computation phase, the one that is in charge of determining
+the Voltage on neuron morphology and one of the most time consuming steps of the
+simulation.
+
+
 
