@@ -40,6 +40,8 @@
 
 \vspace{10ex}
 \section{Implementation of cuThomasBatch}
+For conveience, we start from the implementation of cuThomasBatch, which can seen as the original method of cuHinesBatch.
+
 An efficient memory management is critical to achieve a good performance, but even
 much more on those architectures based on a high throughput and a high memory
 latency, such as the GPUs. In this sense, first we focus on presenting the different data
@@ -50,12 +52,11 @@ locations, in the Full-Interleaved data layout, first, we store the first elemen
 of the systems in contiguous memory locations, after that we store the set of the second
 elements, and so on until the last element.
 
-\vspace{5ex}
 \begin{figure}[htbp]
     \centering
     \includegraphics[width = 0.8\textwidth]{fig-31}
-    \label{fig:fig-31}
     \caption{Example of the \textit{Flat} data layout}
+    \label{fig:fig-31}
 \end{figure}
 
 For sake of clarity, Figure \ref{fig:fig-31} and \ref{fig:fig-32} illustrate a simple example composed by four
@@ -71,8 +72,8 @@ found in the data layouts studied have important consequences on the scalability
 \begin{figure}[htbp]
     \centering
     \includegraphics[width = 0.8\textwidth]{fig-32}
-    \label{fig:fig-32}
     \caption{Example of the \textit{Flat} data layout}
+    \label{fig:fig-32}
 \end{figure}
 
 Additionally, we have explored other data-layout, Unified-Vector. In this case, we
@@ -80,12 +81,154 @@ attempt to analyze the hierarchy of memory by exploiting the temporal locality t
 there is among the different vectors. Basically, every
 thread, immediately after $a_i$ is computed, has to compute also 
 $b_i$ and $c_i$, in the forward step. In the backward step, the process
-is similar, but in the opposite order.
+is similar, but in the opposite order. Using this data layout, we want to take advantage of
+this characteristic of the \textit{Thomas} algorithm.
+take advantage of this characteristic of the Thomas algorithm.
+For sake of clarity, Figure \ref{fig:fig-33} 
+graphically illustrates the data layout proposed for a simple batch 
+composed by only 2 independent tridiagonal systems.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.8\textwidth]{fig-33}
+    \caption{Example of the Unified-Vector data layout}
+    \label{fig:fig-33}
+\end{figure}
+
+Next, we explore the different proposals about the CUDA thread mapping on the
+data layouts above described. Figure \ref{fig:fig-34} illustrates the different CUDA thread mappings studied in this paper. Figure 3.4(top) shows a coarse-grain scheme where a set of
+tridiagonal ($S_1$, $\cdots$, $S_n$ in Figure \ref{fig:fig-34}) systems
+ is mapped onto a CUDA block, so that each CUDA thread fully solves one system. We decided to explore this approach to avoid
+ dealing with atomic accesses and synchronizations, as well as to be able to execute a
+ very high number of tridiagonal systems of any size, without the limitation imposed by
+ the parallel methods.
+
+ Using the Flat data layout we can not exploit coalescence when exploting one thread per tridiagonal
+ system (coarse approach); however by interleaving (\ref{fig:fig-32}) the elements of the 
+ vectors, contiguous threads access to contiguous memory locations. This approach does not
+ exploit efficiently the shared memory of the GPUs, since the memory required by each
+ CUDA thread becomes too large. Our GPU implementation (cuThomasBatch) is based on this approach,
+ Thomas algorithm on Full-Interleaved data layout.
+
+ On the other hand, block so that the shared memory of the GPU can be used more effectively (both the
+ matrix coefficients and the right hand side of each tridiagonal system are hold on the
+ shared memory of the GPU). However, computationally expensive operations, such as
+ synchronizations and atomic accesses are necessary. Also this approach saturates the
+ capacity of the GPU with a relatively low number of tridiagonal systems. Although the
+ shared memory is much faster than the global memory, it presents some important 
+ constraints to deal with. This memory is useful when the same data can be reused either by
+ the same thread or by other thread of the same block of threads (CUDA block). Also,
+ it is small and its use hinders the exchange
+ among blocks of threads by the CUDA scheduler to overlap accesses to global memory
+ with computation. Our reference implementation (the gtsvStridedBatch routine into
+ the cuSPARSE package) is based of this approach, CR-PCR on Flat
+ data layout (Figure \ref{fig:fig-31}).
+
+ 
+ \vspace{1ex}
+ \begin{figure}[htbp]
+    \centering
+    \includegraphics[width = 0.8\textwidth]{fig-34}
+    \caption{Coarse (top) and fine (bottom) CUDA thread mapping}
+    \label{fig:fig-34}
+\end{figure}
 
 
+\vspace{10ex}
+\section{Implementation of cuHinesBatch}
+As we mentioned previous in this work, we can say that Hines solver is a particular
+case of Thomas solver, for this reason all of our proposed approaches are based on the
+previous knowledge.
+
+As in cuThomasBatch implementation, we are going to explore different data layouts: Flat and Full-Interleaved, explained in the previous section, and Block-Interleaved,
+that similarly to the Full-Interleaved data layout, the Block-Interleaved data layout divides the set of systems in groups of systems of a given size (BS), whose elements are
+stored in memory by using the strategy followed by the Full-Interleaved approach.
+Same as in Figure 3.1, please note that we only illustrate one vector per system in
+Figure \ref{fig:fig-35}, but in the real scenario we would have 4 vectors per Hines system.
+
+\vspace{1ex}
+\begin{figure}[htbp]
+   \centering
+   \includegraphics[width = 0.8\textwidth]{fig-35}
+   \caption{Example of Block-Interleaved data layout with a BS equal to 2, for 4 Hines
+    systems of three elements each. Point-line represe}
+   \label{fig:fig-35}
+\end{figure}
+
+Although, we exploit coalescence in the memory accesses by using the Full-Interleaved
+approach, the threads have to jump in memory as many elements as the number of systems to access the next element of the vector(s) (Point-lines in Figure 3.5). This could
+cause an inefficient use of the memory hierarchy. This is why we study an
+ additional approach, the called \textit{Block-Interleaved} data layout.  
+ Using this approach we reduce thenumber of elements among consecutive
+  elements of the same system, and so the jumpsin memory are not as big
+   as in the previous approach (\textit{Full-Interleaved}), 
+   while keeping the coalesced memory accesses.  Also, the use of the
+   \textit{Block-Interleaved} data layout can take advantage better of the 
+    growing importance of the bigger and bigger cachememories in the
+     memory hierarchy of the current and upcoming CUDA architectures.
+
+\subsection*{Implementation based on Shared Memory}
+Unlike the previous approaches, here we explore the use of shared
+ memory for our tar-get application.  
+ The shared memory is much faster than the global memory; 
+ however it presents some important constraints to deal with. 
+  This memory is useful when thesame  data  can  be  reused  either 
+   by  the  same  thread  or  by  other  thread  of  the  same block 
+   of threads (CUDA block).  Also, it is small (until 48KB in the 
+    architecture used) and its use hinders the exchange among blocks
+    of threads by the CUDA scheduler tooverlap accesses to global memory
+     with computation.
+
+ As we can see in Algorithm 1, in our problem the elements of the
+vectors $a$, $d$, $b$, $rhs$ and $p$ are reused in the \textit{Forward 
+ Sweep} after computing the Backward Sweep. However, the granularity used 
+ (1 thread per system) and the limit of the shared memory (48KB) prevents
+  from storing all the vectors in shared memory. To be able to use 
+  shared memory we have to use theBlock-Interleaveddata layout.  
+  The number of systems tobe grouped (BS) is imposed by the size of
+   the shared memory.  In order to address thelimitation of shared 
+   memory, we only store therhsvector, as this is the vector on which 
+   more accesses are carried out.  In this sense,  the more systems 
+   are packed in sharedmemory, the more accesses to shared memory 
+   are carried out.
 
 
+\vspace{10ex}
+\section{Implementation of Variable Batch}
 
+In  this  section,  we  describe  the  techniques  used  to  deal
+with  Variable  Batch,  batchof tridiagonal(Thomas and Hines) 
+systems with different sizes.  Figure 3.6 graphically illustrates a 
+simple example of Variable Batch composed by three vectors of 
+different size.  To deal with Variable Batch, we make use of a 
+widely used and extended techniquevery popular in parallel
+programming, the so called padding.  This technique basically consists
+of  filling  with  null  elements  those  memory  locations  between  two  different data
+of  different  size.   This  is  particularly  interesting  and  
+beneficial  for  GPU-basedarchitectures, where the pattern of 
+access to memory is critical to achieve coalescing and reduce the 
+impact of the high latency.  However, in our particular scenario, 
+we haveto adapt this technique to the data-layout used, 
+Full-Interleaved.  An example of this is illustrated by Figure \ref{fig:fig-36}
+
+    \vspace{1ex}
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width = 0.8\textwidth]{fig-36}
+        \caption{Example of the Full-Interleaved data layout for Variable Batch (Padding)}
+        \label{fig:fig-36}
+    \end{figure}
+
+Regarding the CUDA thread mapping, we follow the approach based on using one
+CUDA thread per tridiagonal thread (Figure 3.4-top). The reference code (gtsvStridedBatch) does not offer the possibility to compute batch of tridiagonal system of different
+size. We have evaluated two different approaches, one called Computing Padding (CP)
+and one called No Computing Padding (NCP). While the CP approach computes the
+null elements located between different inputs, which does not affect to the final result,
+the NCP only computes the no-null elements. This last can be shown as a more efficient
+approach, but it is in need of a extra parameter (vector) which stores the size of the
+systems and it suffers from divergence. Those threads that are in charge of computing
+small systems, stop before others which have to compute large systems. This provokes
+not only divergence
 
 
 

@@ -6,7 +6,7 @@
 
 The standard algorithm used to compute the Voltage on neurons' morphology
  is the Hines algorithm [8]. This algorithm is based on the Thomas 
- algorithm [2], which solves tridiagonal systems. Although the use of
+ algorithm [4], which solves tridiagonal systems. Although the use of
   GPUs to compute the Thomas algorithm has been deeply studied 
   [5], the differences among these two algorithms,
    Hines and Thomas, makes us impossible to use the last one as this 
@@ -44,7 +44,7 @@ neurons (128) is computed using single precision operations, in \cite{cuHines}
 
 Although GPUs are traditionally associated to interactive applications involving high
 rasterization performance, they are also widely used to accelerate much more general
-applications (now called General Purpose Computing on GPU (GPGPU) [26]) which
+applications (now called General Purpose Computing on GPU (GPGPU)) which
 require an intense computational load and present parallel characteristics. The main
 feature of these devices is a large number of processing elements integrated into a single chip, which reduces significantly the cache memory. These processing elements
 can access to a local high-speed external DRAM memory, connected to the computer
@@ -183,7 +183,7 @@ is more regular.
 
 In fact, hybrid combinations that try to exploit the best of each algorithm have
 been explored. Figure \ref{fig:24} illustrates the access pattern of the
-CR-PCR combination proposed in [21]. CR-PCR reduces the system to a certain size
+CR-PCR combination proposed in [13]. CR-PCR reduces the system to a certain size
 using the forward reduction phase of CR and then solves the reduced (intermediate)
 system with the PCR algorithm. Finally, it substitutes the solved unknowns back into
 the original system using the backward substitution phase of CR. Indeed, this is the
@@ -277,7 +277,7 @@ the Hines algorithm is illustrated in pseudo-code in Algorithm 1.
 \vspace{5ex}
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width = 0.9\textwidth]{hines}
+    \includegraphics[width = 1.0\textwidth]{hines}
     \label{fig:hines}
 \end{figure}
 
