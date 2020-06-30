@@ -35,7 +35,7 @@ found in the data layouts studied have important consequences on the scalability
 \begin{figure}[htbp]
     \centering
     \includegraphics[width = 0.8\textwidth]{fig-32}
-    \caption{Example of the \textit{Flat} data layout}
+    \caption{Example of the \textit{Full-Interleaved} data layout}
     \label{fig:fig-32}
 \end{figure}
 
@@ -191,6 +191,8 @@ the NCP only computes the no-null elements. This last can be shown as a more eff
 approach, but it is in need of a extra parameter (vector) which stores the size of the
 systems and it suffers from divergence. Those threads that are in charge of computing
 small systems, stop before others which have to compute large systems. This provokes
-not only divergence
+not only divergence among different threads in the same CUDA block, 
+but also no coalesce memory accesses, which can affect to performance
+considerably. 
 
 

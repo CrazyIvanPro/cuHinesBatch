@@ -61,7 +61,7 @@ elements, and so on until the last element.
 
 For sake of clarity, Figure \ref{fig:fig-31} and \ref{fig:fig-32} illustrate a simple example composed by four
 different tridiagonal systems of three elements each. Please, note that we only illustrate
-one vector per system in Figure 3.1, but in the real scenario we would have 4 vectors
+one vector per system in Figure \ref{fig:fig-31}, but in the real scenario we would have 4 vectors
 per tridiagonal system on which are carried out the strategies above described. As
 widely known, one of the most important requirements to achieve a good performance
 on NVIDIA GPUs is to have contiguous threads accessing contiguous memory locations
@@ -72,7 +72,7 @@ found in the data layouts studied have important consequences on the scalability
 \begin{figure}[htbp]
     \centering
     \includegraphics[width = 0.8\textwidth]{fig-32}
-    \caption{Example of the \textit{Flat} data layout}
+    \caption{Example of the \textit{Full-Interleaved} data layout}
     \label{fig:fig-32}
 \end{figure}
 
@@ -96,7 +96,7 @@ composed by only 2 independent tridiagonal systems.
 \end{figure}
 
 Next, we explore the different proposals about the CUDA thread mapping on the
-data layouts above described. Figure \ref{fig:fig-34} illustrates the different CUDA thread mappings studied in this paper. Figure 3.4(top) shows a coarse-grain scheme where a set of
+data layouts above described. Figure \ref{fig:fig-34} illustrates the different CUDA thread mappings studied in this paper. Figure \ref{fig:fig-34}(top) shows a coarse-grain scheme where a set of
 tridiagonal ($S_1$, $\cdots$, $S_n$ in Figure \ref{fig:fig-34}) systems
  is mapped onto a CUDA block, so that each CUDA thread fully solves one system. We decided to explore this approach to avoid
  dealing with atomic accesses and synchronizations, as well as to be able to execute a
@@ -143,7 +143,7 @@ previous knowledge.
 As in cuThomasBatch implementation, we are going to explore different data layouts: Flat and Full-Interleaved, explained in the previous section, and Block-Interleaved,
 that similarly to the Full-Interleaved data layout, the Block-Interleaved data layout divides the set of systems in groups of systems of a given size (BS), whose elements are
 stored in memory by using the strategy followed by the Full-Interleaved approach.
-Same as in Figure 3.1, please note that we only illustrate one vector per system in
+Same as in Figure \ref{fig:fig-31}, please note that we only illustrate one vector per system in
 Figure \ref{fig:fig-35}, but in the real scenario we would have 4 vectors per Hines system.
 
 \vspace{1ex}
@@ -151,12 +151,12 @@ Figure \ref{fig:fig-35}, but in the real scenario we would have 4 vectors per Hi
    \centering
    \includegraphics[width = 0.8\textwidth]{fig-35}
    \caption{Example of Block-Interleaved data layout with a BS equal to 2, for 4 Hines
-    systems of three elements each. Point-line represe}
+    systems of three elements each. Point-line represens the jumps in memory carried out by the first thread/system}
    \label{fig:fig-35}
 \end{figure}
 
 Although, we exploit coalescence in the memory accesses by using the Full-Interleaved
-approach, the threads have to jump in memory as many elements as the number of systems to access the next element of the vector(s) (Point-lines in Figure 3.5). This could
+approach, the threads have to jump in memory as many elements as the number of systems to access the next element of the vector(s) (Point-lines in Figure \ref{fig:fig-35}). This could
 cause an inefficient use of the memory hierarchy. This is why we study an
  additional approach, the called \textit{Block-Interleaved} data layout.  
  Using this approach we reduce thenumber of elements among consecutive
@@ -184,7 +184,7 @@ vectors $a$, $d$, $b$, $rhs$ and $p$ are reused in the \textit{Forward
  Sweep} after computing the Backward Sweep. However, the granularity used 
  (1 thread per system) and the limit of the shared memory (48KB) prevents
   from storing all the vectors in shared memory. To be able to use 
-  shared memory we have to use theBlock-Interleaveddata layout.  
+  shared memory we have to use the Block-Interleaved data layout.  
   The number of systems tobe grouped (BS) is imposed by the size of
    the shared memory.  In order to address thelimitation of shared 
    memory, we only store therhsvector, as this is the vector on which 
@@ -194,11 +194,12 @@ vectors $a$, $d$, $b$, $rhs$ and $p$ are reused in the \textit{Forward
 
 
 \vspace{10ex}
-\section{Implementation of Variable Batch}
+\section{Implementation of Heterogeneous Parallelization}
 
 In  this  section,  we  describe  the  techniques  used  to  deal
-with  Variable  Batch,  batchof tridiagonal(Thomas and Hines) 
-systems with different sizes.  Figure 3.6 graphically illustrates a 
+with  Variable  Batch,  batch of tridiagonal(Thomas and Hines) 
+systems with different sizes. Which means that, we could compute 12 cases with different size in parallel.
+ Figure \ref{fig:fig-36} graphically illustrates a 
 simple example of Variable Batch composed by three vectors of 
 different size.  To deal with Variable Batch, we make use of a 
 widely used and extended techniquevery popular in parallel
@@ -209,7 +210,7 @@ beneficial  for  GPU-basedarchitectures, where the pattern of
 access to memory is critical to achieve coalescing and reduce the 
 impact of the high latency.  However, in our particular scenario, 
 we haveto adapt this technique to the data-layout used, 
-Full-Interleaved.  An example of this is illustrated by Figure \ref{fig:fig-36}
+Full-Interleaved.  An example of this is illustrated by Figure \ref{fig:fig-36}.
 
     \vspace{1ex}
     \begin{figure}[htbp]
@@ -219,17 +220,18 @@ Full-Interleaved.  An example of this is illustrated by Figure \ref{fig:fig-36}
         \label{fig:fig-36}
     \end{figure}
 
-Regarding the CUDA thread mapping, we follow the approach based on using one
-CUDA thread per tridiagonal thread (Figure 3.4-top). The reference code (gtsvStridedBatch) does not offer the possibility to compute batch of tridiagonal system of different
-size. We have evaluated two different approaches, one called Computing Padding (CP)
-and one called No Computing Padding (NCP). While the CP approach computes the
-null elements located between different inputs, which does not affect to the final result,
-the NCP only computes the no-null elements. This last can be shown as a more efficient
-approach, but it is in need of a extra parameter (vector) which stores the size of the
-systems and it suffers from divergence. Those threads that are in charge of computing
-small systems, stop before others which have to compute large systems. This provokes
-not only divergence
-
+    Regarding the CUDA thread mapping, we follow the approach based on using one
+    CUDA thread per tridiagonal thread (Figure 3.4-top). The reference code (gtsvStridedBatch) does not offer the possibility to compute batch of tridiagonal system of different
+    size. We have evaluated two different approaches, one called Computing Padding (CP)
+    and one called No Computing Padding (NCP). While the CP approach computes the
+    null elements located between different inputs, which does not affect to the final result,
+    the NCP only computes the no-null elements. This last can be shown as a more efficient
+    approach, but it is in need of a extra parameter (vector) which stores the size of the
+    systems and it suffers from divergence. Those threads that are in charge of computing
+    small systems, stop before others which have to compute large systems. This provokes
+    not only divergence among different threads in the same CUDA block, 
+    but also no coalesce memory accesses, which can affect to performance
+    considerably. 
 
 
 
