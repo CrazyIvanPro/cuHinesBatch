@@ -19,7 +19,7 @@
 *.loe
 *.ptc
 *.run
-*.synctex
+*.synctex.gz
 
 # Pictures
 Pictures/
